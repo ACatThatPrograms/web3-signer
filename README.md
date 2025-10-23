@@ -104,6 +104,7 @@ MFA Tested with *Google Authenticator* only
 ### General
 
 [] - Clean up log vomit from debugging
+[] - Clean up overly verbose LLM commentary from assisted dev
 [] - Optimize API Dockerfile (Building twice for a multi-build step, probably unnecessary)
 [] - Dry up some repetition that I created when cleaning up LLM components, namely between the UI MFA and OTP components
 [] - Add E2E testing in addition to the unit testing in the API
