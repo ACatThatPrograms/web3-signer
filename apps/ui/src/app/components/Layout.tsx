@@ -53,7 +53,7 @@ export default function Layout({ children }: LayoutProps) {
               )}
 
               {/* Theme toggle */}
-              <button
+              {/* <button
                 onClick={toggleTheme}
                 className={cn(
                   'p-2 rounded-lg transition-colors',
@@ -64,7 +64,7 @@ export default function Layout({ children }: LayoutProps) {
                 aria-label="Toggle theme"
               >
                 {isDark ? <Sun size={20} /> : <Moon size={20} />}
-              </button>
+              </button> */}
 
               {/* Logout button */}
               {isAuthenticated && (

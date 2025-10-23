@@ -99,6 +99,7 @@ MFA Tested with *Google Authenticator* only
 
 ### UX Tweaks
 
+[] - Fix light version, it is ugly, initial dev prioritized dark
 [] - Provide UI feedback between wallet connect and sign (slight lag, needs assurance text and loader)
 
 ### General
