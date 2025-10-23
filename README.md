@@ -63,7 +63,7 @@ They are both optional, however if nither ENV is filled, no option will not be a
 
 ## Test Suite
 
-The API currently has a test suite for the most critical things and can be run with `pnpm test` from the project root after database setup
+The API currently has a test suite for the most critical things and can be run with `pnpm nx run api:test` from the project root after database setup
 
 ## QA Session 
 

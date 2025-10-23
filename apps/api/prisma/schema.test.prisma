@@ -1,0 +1,63 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  address   String   @unique
+  role      String   @default("user")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  auth      Auth?
+  messages  Message[]
+  
+  @@map("users")
+}
+
+model Auth {
+  id                    Int       @id @default(autoincrement())
+  userId                Int       @unique
+  mfa                   Boolean   @default(false)
+  awaitingMfa          Boolean   @default(false) @map("awaiting_mfa")
+  mfaTimeoutTimestamp  DateTime? @map("mfa_timeout_timestamp")
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("auth")
+}
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  message   String
+  signature String
+  signer    String
+  valid     Boolean
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@map("messages")
+}
+
+model Session {
+  id        String   @id
+  sid       String   @unique
+  data      String
+  expiresAt DateTime @map("expires_at")
+  
+  @@map("sessions")
+}

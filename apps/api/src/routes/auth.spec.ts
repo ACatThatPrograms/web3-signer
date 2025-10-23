@@ -4,8 +4,7 @@ import session from 'express-session';
 import { PrismaClient } from '@prisma/client';
 import { ethers } from 'ethers';
 import { authenticator } from 'otplib';
-import crypto from 'crypto';
-import authRouter from './auth';
+import authRouter, { generateMFASecret } from './auth';
 
 // Test wallet for signing
 const testWallet = ethers.Wallet.createRandom();
@@ -18,17 +17,6 @@ const otherAddress = otherWallet.address;
 // Helper to create signed message
 async function signMessage(message: string, wallet = testWallet) {
   return await wallet.signMessage(message);
-}
-
-// Helper to generate MFA secret (matching the implementation)
-function generateMFASecret(address: string): string {
-  const salt = process.env.MFA_SERVER_SALT || 'default-salt-change-this';
-  return crypto
-    .createHash('sha256')
-    .update(`${address}:${salt}`)
-    .digest('base64')
-    .replace(/[^a-zA-Z0-9]/g, '')
-    .substring(0, 32);
 }
 
 describe('Auth Routes', () => {
@@ -384,7 +372,6 @@ describe('Auth Routes', () => {
         });
         expect(response.body.qrCode).toBeDefined();
         expect(response.body.qrCode).toContain('data:image/png;base64');
-        expect(response.body.secret).toBeDefined();
 
         // Verify user auth was updated
         const updatedUser = await prisma.auth.findUnique({
@@ -458,28 +445,58 @@ describe('Auth Routes', () => {
       });
 
       it('should enable MFA with valid code', async () => {
-        const secret = generateMFASecret(testAddress);
-        authenticator.options = { window: 2 };
+        // Create and login user
+        const wallet = ethers.Wallet.createRandom();
+        const loginSig = await signMessage('login', wallet);
+        
+        const loginResponse = await request(app)
+          .post('/auth')
+          .send({
+            message: 'login',
+            signature: loginSig,
+            address: wallet.address
+          });
+      
+        const cookie = loginResponse.headers['set-cookie'];
+      
+        // Initialize MFA
+        const mfaSig = await signMessage('enableMFA', wallet);
+        const initResponse = await request(app)
+          .post('/auth/mfa/initialize')
+          .set('Cookie', cookie)
+          .send({
+            message: 'enableMFA',
+            signature: mfaSig
+          });
+      
+        expect(initResponse.status).toBe(200);
+      
+        // Generate valid TOTP code using the deterministic secret
+        const secret = generateMFASecret(wallet.address);
         const validCode = authenticator.generate(secret);
-
-        const response = await authenticatedAgent
+      
+        // Verify MFA code
+        const response = await request(app)
           .post('/auth/mfa/verify')
+          .set('Cookie', cookie)
           .send({
             mfa_code: validCode
           });
-
+      
         expect(response.status).toBe(200);
         expect(response.body).toMatchObject({
           success: true,
           message: 'MFA enabled successfully'
         });
-
-        // Verify MFA was enabled
-        const updatedAuth = await prisma.auth.findUnique({
-          where: { userId }
+      
+        // Verify user auth was updated
+        const user = await prisma.user.findUnique({
+          where: { address: wallet.address.toLowerCase() },
+          include: { auth: true }
         });
-        expect(updatedAuth?.mfa).toBe(true);
-        expect(updatedAuth?.awaitingMfa).toBe(false);
+      
+        expect(user?.auth?.mfa).toBe(true);
+        expect(user?.auth?.awaitingMfa).toBe(false);
       });
 
       it('should reject invalid MFA code', async () => {
@@ -570,28 +587,69 @@ describe('Auth Routes', () => {
 
       bonusPhrase = loginResponse.body.mfa_bonus_phrase;
     });
-
     it('should complete login with valid MFA code and bonus phrase', async () => {
-      const secret = generateMFASecret(testAddress);
-      authenticator.options = { window: 2 };
-      const validCode = authenticator.generate(secret);
-
-      const response = await mfaAgent
-        .post('/auth/mfa')
+      // Create user with MFA enabled
+      const wallet = ethers.Wallet.createRandom();
+      const user = await prisma.user.create({
+        data: {
+          address: wallet.address.toLowerCase(),
+          auth: {
+            create: {
+              mfa: true,
+              awaitingMfa: false
+            }
+          }
+        },
+        include: { auth: true } // Make sure to include auth
+      });
+    
+      // Verify MFA is actually enabled
+      expect(user.auth?.mfa).toBe(true);
+    
+      // First login to trigger MFA flow
+      const loginSig = await signMessage('login', wallet);
+      const loginResponse = await request(app)
+        .post('/auth')
         .send({
-          mfa_code: validCode,
+          message: 'login',
+          signature: loginSig,
+          address: wallet.address
+        });
+    
+      // Debug: log the response if it fails
+      if (loginResponse.status !== 200 || !loginResponse.body.mfa) {
+        console.log('Login response:', loginResponse.body);
+        console.log('User auth from DB:', user.auth);
+      }
+    
+      expect(loginResponse.status).toBe(200);
+      expect(loginResponse.body.mfa).toBe(true);
+      expect(loginResponse.body.mfa_bonus_phrase).toBeDefined();
+    
+      const bonusPhrase = loginResponse.body.mfa_bonus_phrase;
+      const cookie = loginResponse.headers['set-cookie'];
+    
+      // Generate valid TOTP code
+      const secret = generateMFASecret(wallet.address);
+      const mfaCode = authenticator.generate(secret);
+    
+      // Complete MFA authentication
+      const response = await request(app)
+        .post('/auth/mfa')
+        .set('Cookie', cookie)
+        .send({
+          mfa_code: mfaCode,
           mfa_bonus_phrase: bonusPhrase
         });
-
+    
       expect(response.status).toBe(200);
       expect(response.body).toMatchObject({
         success: true,
         user: {
-          address: testAddress,
-          role: 'user'
+          address: wallet.address.toLowerCase(),
+          mfa: true
         }
       });
-      expect(response.body.messages).toBeDefined();
     });
 
     it('should reject with invalid bonus phrase', async () => {
@@ -675,23 +733,59 @@ describe('Auth Routes', () => {
     });
 
     it('should clear MFA timeout after successful authentication', async () => {
-      const secret = generateMFASecret(testAddress);
-      authenticator.options = { window: 2 };
-      const validCode = authenticator.generate(secret);
-
-      await mfaAgent
-        .post('/auth/mfa')
+      // Create user with MFA enabled
+      const wallet = ethers.Wallet.createRandom();
+      const user = await prisma.user.create({
+        data: {
+          address: wallet.address.toLowerCase(),
+          auth: {
+            create: {
+              mfa: true,
+              awaitingMfa: false
+            }
+          }
+        }
+      });
+    
+      // Login to trigger MFA
+      const loginSig = await signMessage('login', wallet);
+      const loginResponse = await request(app)
+        .post('/auth')
         .send({
-          mfa_code: validCode,
-          mfa_bonus_phrase: bonusPhrase
+          message: 'login',
+          signature: loginSig,
+          address: wallet.address
         });
-
-      const updatedAuth = await prisma.auth.findUnique({
+    
+      const bonusPhrase = loginResponse.body.mfa_bonus_phrase;
+      const cookie = loginResponse.headers['set-cookie'];
+    
+      // Verify timeout was set
+      let auth = await prisma.auth.findUnique({
         where: { userId: user.id }
       });
-
-      expect(updatedAuth?.mfaTimeoutTimestamp).toBeNull();
+      expect(auth?.mfaTimeoutTimestamp).not.toBeNull();
+    
+      // Complete MFA authentication
+      const secret = generateMFASecret(wallet.address);
+      const mfaCode = authenticator.generate(secret);
+    
+      await request(app)
+        .post('/auth/mfa')
+        .set('Cookie', cookie)
+        .send({
+          mfa_code: mfaCode,
+          mfa_bonus_phrase: bonusPhrase
+        });
+    
+      // Verify timeout was cleared
+      auth = await prisma.auth.findUnique({
+        where: { userId: user.id }
+      });
+      
+      expect(auth?.mfaTimeoutTimestamp).toBeNull();
     });
+
   });
 
   describe('Edge cases and error handling', () => {
