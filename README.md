@@ -69,20 +69,22 @@ The API currently has a test suite for the most critical things and can be run w
 
 Tested primarily in Chrome with some Firefox sprinkled in
 
-- [] User can login with Dynamic 
-    - [] Rejection of signature doesnt allow login
-    - [] User can sign and verify a message with a Dynamic Wallet
-    - [] User can sign batch messages for verification with a Dynamic Wallet
-    - [] User can setup MFA
-    - [] User can login using MFA with Dynamic base login
-    - [] User can logout with Dynamic Wallet
-- [] User can login with Metamask using Web3Connect (Other wallets not tested)
-    - [] Rejection of signature doesnt allow login
-    - [] User can sign and verify a message with Metamask
-    - [] User can sign batch messages for verification with Metamask
-    - [] User can setup MFA with Metamask
-    - [] User can login Using MFA with Metamask base login
-    - [] User can logout with Metamask
+MFA Tested with *Google Authenticator* only
+
+- [x] User can login with Dynamic 
+    - [x] Rejection of signature doesnt allow login
+    - [x] User can sign and verify a message with a Dynamic Wallet
+    - [x] User can sign batch messages for verification with a Dynamic Wallet
+    - [x] User can setup MFA
+    - [x] User can login using MFA with Dynamic base login
+    - [x] User can logout with Dynamic Wallet
+- [x] User can login with Metamask using Web3Connect (Other wallets not tested)
+    - [x] Rejection of signature doesnt allow login
+    - [x] User can sign and verify a message with Metamask
+    - [x] User can sign batch messages for verification with Metamask
+    - [x] User can setup MFA with Metamask
+    - [x] User can login Using MFA with Metamask base login
+    - [x] User can logout with Metamask
 
 ## Known Bugs Things To Add / Patch Checklist (From My QA Session)
 
