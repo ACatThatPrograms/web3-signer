@@ -90,41 +90,41 @@ MFA Tested with *Google Authenticator* only
 
 ### Bugs
 
-[] - Metamask Login can fail to present message signature if wallet is locked in the middle, or timeout locked, refresh solves.
-[] - Metamask Signature can sometimes hide itself, add UX to remind the user to check in browser wallet notifications
-[] - Dynamic has hanged for me at times on login and doesnt send signature request, however I have had trouble reproducing it well enough to test it, refresh solves generally
-[] - Fix double sending toast message on some actions 
-[] - If a dynamic login is left incompleted and user tries to switch to webconnect login, dynamic will continue to prompt for signature.
-    - This seems to happen if a user leaves after signing the login but not completing 2FA check
+- [] Metamask Login can fail to present message signature if wallet is locked in the middle, or timeout locked, refresh solves.
+- [] Metamask Signature can sometimes hide itself, add UX to remind the user to check in browser wallet notifications
+- [] Dynamic has hanged for me at times on login and doesnt send signature request, however I have had trouble reproducing it well enough to test it, refresh solves generally
+- [] Fix double sending toast message on some actions 
+- [] If a dynamic login is left incompleted and user tries to switch to webconnect login, dynamic will continue to prompt for signature.
+- [] This seems to happen if a user leaves after signing the login but not completing 2FA check
 
 ### UX Tweaks
 
-[] - Fix light version, it is ugly, initial dev prioritized dark
-[] - Provide UI feedback between wallet connect and sign (slight lag, needs assurance text and loader)
+- [] Fix light version, it is ugly, initial dev prioritized dark
+- [] Provide UI feedback between wallet connect and sign (slight lag, needs assurance text and loader)
 
 ### General
 
-[] - Clean up extra prisma files (only need psql at this point other than for testing, scripts need updated, default to prisma.schema)
-[] - Clean up log vomit from debugging
-[] - Clean up overly verbose LLM commentary from assisted dev
-[] - Optimize API Dockerfile (Building twice for a multi-build step, probably unnecessary)
-[] - Dry up some repetition that I created when cleaning up LLM components, namely between the UI MFA and OTP components
-[] - Add E2E testing in addition to the unit testing in the API
-[] - Add UI testing
-[] - Setup branch protections to follow protocol on modern CI/CD patterns (deploy dev@main and prod@production) 
-[] - Add test suite to ci/cd pipeline as a prerequisite
+- [] Clean up extra prisma files (only need psql at this point other than for testing, scripts need updated, default to prisma.schema)
+- [] Clean up log vomit from debugging
+- [] Clean up overly verbose LLM commentary from assisted dev
+- [] Optimize API Dockerfile (Building twice for a multi-build step, probably unnecessary)
+- [] Dry up some repetition that I created when cleaning up LLM components, namely between the UI MFA and OTP components
+- [] Add E2E testing in addition to the unit testing in the API
+- [] Add UI testing
+- [] Setup branch protections to follow protocol on modern CI/CD patterns (deploy dev@main and prod@production) 
+- [] Add test suite to ci/cd pipeline as a prerequisite
 
 ### Feature Goals
 
-[] - Add swagger
-[] - Allow deleting messages (API is done, neeed to implement UI...)
-[] - Unify types between front and back-end by abstracting to an external package
-[] - Auto accept email OTP code entry (DO same checks that are in OTP component or abstract)
-[] - Remove multiple contexts in exchange for redux or similar reducers in UI code 
-[] - Allow removing multi factor auth
+- [] Add swagger
+- [] Allow deleting messages (API is done, neeed to implement UI...)
+- [] Unify types between front and back-end by abstracting to an external package
+- [] Auto accept email OTP code entry (DO same checks that are in OTP component or abstract)
+- [] Remove multiple contexts in exchange for redux or similar reducers in UI code 
+- [] Allow removing multi factor auth
 
 ### Stretch goals
 
-[] - If really ambitious add terraform to deploy on minikube and GCP for quick up/down
+- [] If really ambitious add terraform to deploy on minikube and GCP for quick up/down
 
 
