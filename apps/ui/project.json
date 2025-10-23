@@ -1,0 +1,25 @@
+{
+  "name": "ui",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "ui/src",
+  "projectType": "application",
+  "tags": [],
+  "// targets": "to see all targets run: nx show project ui --web",
+  "serve": {
+    "executor": "@nx/js:node",
+    "defaultConfiguration": "development",
+    "options": {
+      "buildTarget": "api:ui",
+      "runBuildTargetDependencies": false,
+      "watch": true
+    },
+    "configurations": {
+      "development": {
+        "buildTarget": "api:build:development"
+      },
+      "production": {
+        "buildTarget": "api:build:production"
+      }
+    }
+  }
+}

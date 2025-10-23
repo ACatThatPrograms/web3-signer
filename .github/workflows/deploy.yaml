@@ -1,0 +1,175 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - dev_deploy
+  workflow_dispatch:
+
+env:
+  GCP_PROJECT_ID: cat-default
+  GCP_REGION: us-central1
+  ARTIFACT_REGISTRY: us-central1-docker.pkg.dev
+  REPOSITORY: web3-signer
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      ui-changed: ${{ steps.changes.outputs.ui }}
+      api-changed: ${{ steps.changes.outputs.api }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            ui:
+              - 'apps/ui/**'
+              - 'libs/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+            api:
+              - 'apps/api/**'
+              - 'libs/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+
+  build-and-deploy-ui:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.ui-changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }}
+
+      - name: Get UI Secrets
+        id: ui-secrets
+        run: |
+          echo "VITE_API_URL=$(gcloud secrets versions access latest --secret=UI_VITE_API_URL)" >> $GITHUB_OUTPUT
+          echo "VITE_DYNAMIC_ENVIRONMENT_ID=$(gcloud secrets versions access latest --secret=UI_VITE_DYNAMIC_ENVIRONMENT_ID)" >> $GITHUB_OUTPUT
+          echo "VITE_WALLETCONNECT_PROJECT_ID=$(gcloud secrets versions access latest --secret=UI_VITE_WALLETCONNECT_PROJECT_ID)" >> $GITHUB_OUTPUT
+          echo "VITE_ENABLE_MFA=$(gcloud secrets versions access latest --secret=UI_VITE_ENABLE_MFA)" >> $GITHUB_OUTPUT
+          echo "VITE_ENABLE_BATCH_SIGNING=$(gcloud secrets versions access latest --secret=UI_VITE_ENABLE_BATCH_SIGNING)" >> $GITHUB_OUTPUT
+
+      - name: Build and Push UI Docker Image
+        run: |
+          IMAGE_TAG="${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/ui:${{ github.sha }}"
+          IMAGE_LATEST="${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/ui:latest"
+          
+          docker build -f Dockerfile.ui \
+            --build-arg VITE_API_URL="${{ steps.ui-secrets.outputs.VITE_API_URL }}" \
+            --build-arg VITE_DYNAMIC_ENVIRONMENT_ID="${{ steps.ui-secrets.outputs.VITE_DYNAMIC_ENVIRONMENT_ID }}" \
+            --build-arg VITE_WALLETCONNECT_PROJECT_ID="${{ steps.ui-secrets.outputs.VITE_WALLETCONNECT_PROJECT_ID }}" \
+            --build-arg VITE_ENABLE_MFA="${{ steps.ui-secrets.outputs.VITE_ENABLE_MFA }}" \
+            --build-arg VITE_ENABLE_BATCH_SIGNING="${{ steps.ui-secrets.outputs.VITE_ENABLE_BATCH_SIGNING }}" \
+            -t $IMAGE_TAG -t $IMAGE_LATEST .
+          docker push $IMAGE_TAG
+          docker push $IMAGE_LATEST
+
+      - name: Deploy UI to Cloud Run
+        run: |
+          gcloud run deploy web3-signer-ui-dev \
+            --image ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/ui:${{ github.sha }} \
+            --platform managed \
+            --region ${{ env.GCP_REGION }} \
+            --allow-unauthenticated \
+            --service-account cat-default-deployer@cat-default.iam.gserviceaccount.com \
+            --port 8080 \
+            --memory 512Mi \
+            --cpu 1 \
+            --min-instances 1 \
+            --max-instances 2
+
+      - name: Get UI Service URL
+        run: |
+          UI_URL=$(gcloud run services describe web3-signer-ui-dev --region ${{ env.GCP_REGION }} --format 'value(status.url)')
+          echo "UI deployed to: $UI_URL"
+          echo "UI_URL=$UI_URL" >> $GITHUB_ENV
+
+  build-and-deploy-api:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.api-changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }}
+
+      - name: Build and Push API Docker Image
+        run: |
+          IMAGE_TAG="${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/api:${{ github.sha }}"
+          IMAGE_LATEST="${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/api:latest"
+          
+          docker build -f Dockerfile.api -t $IMAGE_TAG -t $IMAGE_LATEST .
+          docker push $IMAGE_TAG
+          docker push $IMAGE_LATEST
+
+      - name: Deploy API to Cloud Run
+        run: |
+          gcloud run deploy web3-signer-api-dev \
+            --image ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/api:${{ github.sha }} \
+            --platform managed \
+            --region ${{ env.GCP_REGION }} \
+            --allow-unauthenticated \
+            --service-account cat-default-deployer@cat-default.iam.gserviceaccount.com \
+            --port 3000 \
+            --memory 1Gi \
+            --cpu 1 \
+            --min-instances 1 \
+            --max-instances 2 \
+            --timeout 300 \
+            --add-cloudsql-instances ${{ env.GCP_PROJECT_ID }}:${{ env.GCP_REGION }}:cat-default-psql \
+            --set-env-vars "NODE_ENV=production" \
+            --update-secrets "DATABASE_URL=API_DATABASE_URL:latest,SESSION_SECRET=API_SESSION_SECRET:latest,CORS_ORIGINS=API_CORS_ORIGINS:latest,MFA_SERVER_SALT=API_MFA_SERVER_SALT:latest,LOG_LEVEL=API_LOG_LEVEL:latest,RATE_LIMIT_WINDOW_MS=API_RATE_LIMIT_WINDOW_MS:latest,RATE_LIMIT_MAX_REQUESTS=API_RATE_LIMIT_MAX_REQUESTS:latest"
+
+      - name: Get API Service URL
+        run: |
+          API_URL=$(gcloud run services describe web3-signer-api-dev --region ${{ env.GCP_REGION }} --format 'value(status.url)')
+          echo "API deployed to: $API_URL"
+          echo "API_URL=$API_URL" >> $GITHUB_ENV
+
+  notify:
+    needs: [build-and-deploy-ui, build-and-deploy-api]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deployment Summary
+        run: |
+          echo "Deployment completed!"
+          echo "UI Status: ${{ needs.build-and-deploy-ui.result }}"
+          echo "API Status: ${{ needs.build-and-deploy-api.result }}"
