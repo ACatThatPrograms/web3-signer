@@ -200,7 +200,7 @@ export default function DynamicOTPLogin({
                       <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                         Sending code to:
                       </p>
-                      <p className="text-sm font-medium">{email}</p>
+                      <p className="text-sm font-medium text-black">{email}</p>
                     </div>
                     <button
                       onClick={handleChangeEmail}
