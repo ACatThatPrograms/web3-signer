@@ -104,6 +104,7 @@ MFA Tested with *Google Authenticator* only
 
 ### General
 
+[] - Clean up extra prisma files (only need psql at this point other than for testing, scripts need updated, default to prisma.schema)
 [] - Clean up log vomit from debugging
 [] - Clean up overly verbose LLM commentary from assisted dev
 [] - Optimize API Dockerfile (Building twice for a multi-build step, probably unnecessary)
