@@ -116,6 +116,7 @@ MFA Tested with *Google Authenticator* only
 
 ### Feature Goals
 
+[] - Add swagger
 [] - Allow deleting messages (API is done, neeed to implement UI...)
 [] - Unify types between front and back-end by abstracting to an external package
 [] - Auto accept email OTP code entry (DO same checks that are in OTP component or abstract)
